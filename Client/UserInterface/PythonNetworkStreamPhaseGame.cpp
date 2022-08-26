@@ -9,6 +9,7 @@
 
 			case HEADER_GC_BIOLOGIST_MANAGER_RESEARCH:
 				ret = RecvBiologistManagerResearch();
+				break;
 				
 //at the bottom of the file add:
 bool CPythonNetworkStream::RecvBiologistManagerOpen()
