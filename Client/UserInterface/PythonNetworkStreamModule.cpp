@@ -1,5 +1,5 @@
-before void initnet()
-add:
+//before void initnet()
+//add:
 PyObject* netSendBiologistManagerOpenCommand(PyObject* poSelf, PyObject* poArgs)
 {
 	CPythonNetworkStream::Instance().SendBiologistManagerOpenCommand();
@@ -37,9 +37,9 @@ PyObject* netSendBiologistManagerDeliverCommand(PyObject* poSelf, PyObject* poAr
 	return Py_BuildNone();
 }
 
-before:
+//before:
 		{ NULL,										NULL,										NULL },
-add:
+//add:
 		//Biologist Manager
 		{ "SendBiologistManagerOpenCommand",		netSendBiologistManagerOpenCommand,			METH_VARARGS },
 		{ "SendBiologistManagerDeliverCommand",		netSendBiologistManagerDeliverCommand,		METH_VARARGS },
