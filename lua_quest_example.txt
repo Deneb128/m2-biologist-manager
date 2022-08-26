@@ -1,0 +1,41 @@
+quest my_collect_quest_lv30 begin
+	state start begin
+        when login or levelup with pc.get_level() >= 30 begin 
+			set_state (my_collect_30)
+		end
+	end
+	state my_collect_30 begin
+		when letter begin
+			--send letter + target
+		end
+		when button or info begin
+			--letter talk
+		end
+		when 20084.chat.locale.collect_item.collectname or __TARGET__.target.click begin
+			--npc talk
+			set_state(finditem)
+		end
+	end
+	state finditem begin --constexpr std::string_view BiologistQuestStateCollect
+		--here add your drops, if wanted from lua		
+	end
+	
+	state backtobio begin --constexpr std::string_view BiologistQuestStateBack
+		when letter begin				
+			--send letter
+		end
+		
+		when button or info begin
+			--when letter is opened
+		end
+		
+		when 20084.chat.locale.collect_item.collectname2 or __TARGET__.target.click begin
+			--rewards
+			set_quest_state("my_collect_quest_lv40", "run") --run new collect quest
+			set_state (__COMPLETE__)
+			clear_letter()
+		end
+	end
+	state __COMPLETE__ begin
+	end
+end
