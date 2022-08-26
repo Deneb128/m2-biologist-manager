@@ -1,8 +1,8 @@
-before:
+//before:
 			default:
 				ret = RecvDefaultPacket(header);
 				break;
-add:				
+//add:				
 			case HEADER_GC_BIOLOGIST_MANAGER_OPEN:
 				ret = RecvBiologistManagerOpen();
 				break;
@@ -10,7 +10,7 @@ add:
 			case HEADER_GC_BIOLOGIST_MANAGER_RESEARCH:
 				ret = RecvBiologistManagerResearch();
 				
-at the bottom of the file add:
+//at the bottom of the file add:
 bool CPythonNetworkStream::RecvBiologistManagerOpen()
 {
 	TPacketGCBiologistManagerOpen packet;
