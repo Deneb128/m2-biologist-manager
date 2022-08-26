@@ -10,8 +10,8 @@ add:
 	HEADER_GC_BIOLOGIST_MANAGER_RESEARCH	= 222,
 
 
-At the bottom of the file, before #pragma pack(pop)
-add:
+//At the bottom of the file, before #pragma pack(pop)
+//add:
 typedef struct SPacketGCBiologistManagerOpen
 {
 	BYTE			header;
