@@ -9,8 +9,8 @@
 
 			case HEADER_GC_BIOLOGIST_MANAGER_RESEARCH:
 				ret = RecvBiologistManagerResearch();
-				break;
-				
+
+
 //at the bottom of the file add:
 bool CPythonNetworkStream::RecvBiologistManagerOpen()
 {
@@ -43,4 +43,31 @@ bool CPythonNetworkStream::RecvBiologistManagerResearch()
 		break;
 	}		
 	return true;
+}
+
+bool CPythonNetworkStream::SendBiologistManagerOpenCommand()
+{
+	TPacketCGBiologistManagerOpen packet;
+	packet.header = HEADER_CG_BIOLOGIST_MANAGER_OPEN;
+
+	if (!Send(sizeof(packet), &packet))
+		return false;
+
+	return SendSequence();
+}
+
+bool CPythonNetworkStream::BiologistManagerDeliverItems(uint8_t questID, uint8_t itemWantedCount, uint8_t elixirCount, uint8_t elixirPlusCount, uint8_t timeDeleterCount)
+{
+	TPacketCGBiologistManagerDeliver packet;
+	packet.header = HEADER_CG_BIOLOGIST_MANAGER_DELIVER;
+	packet.questID = questID;
+	packet.itemWantedCount = itemWantedCount;
+	packet.elixirCount = elixirCount;
+	packet.elixirPlusCount = elixirPlusCount;
+	packet.timeDeleterCount = timeDeleterCount;
+	
+	if (!Send(sizeof(packet), &packet))
+		return false;
+
+	return SendSequence();
 }
