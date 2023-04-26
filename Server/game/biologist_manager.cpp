@@ -70,6 +70,7 @@ void CBiologistManager::SetQuestStateToBack(DWORD playerID, const uint8_t questI
 	auto prevStateValue = quest::CQuestManager::Instance().GetQuestStateIndex(questName, prevState);
 	auto questIndex = quest::CQuestManager::instance().GetQuestIndexByName(questName);
 	pPC->SetQuestState(questName, questState);
+	pPC->DoQuestStateChange();
 	quest::CQuestManager::instance().Letter(playerID, questIndex, prevStateValue);
 }
 
