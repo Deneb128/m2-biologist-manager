@@ -35,6 +35,11 @@ void CInputMain::BiologistManagerDeliverItems(LPCHARACTER ch, const char * data)
 	uint8_t elixirPlusCount = pinfo->elixirPlusCount;
 	uint8_t timeDeleterCount = pinfo->timeDeleterCount;
 	if(ch != nullptr){
-		CBiologistManager::instance().ExecuteDeliveryRequest(ch, questID, itemWantedCount, elixirCount, elixirPlusCount, timeDeleterCount);
+		if(ch->IsNextBiologistRequestPulse()){
+			CBiologistManager::instance().ExecuteDeliveryRequest(ch, questID, itemWantedCount, elixirCount, elixirPlusCount, timeDeleterCount);
+		}
+		else{
+			ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("You cannot do this now."));
+		}
 	}
 }
