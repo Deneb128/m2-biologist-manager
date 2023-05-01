@@ -22,15 +22,18 @@ namespace utils{
 
 bool CBiologistManager::IsValidQuestID(LPCHARACTER ch, const uint8_t questID)
 {
-	if(questID > BIOLOGIST_QUEST_MAX_NUM)
+	if(questID > this->GetBiologistQuestMaxNum())
 		return false;
 
-	auto pPC = quest::CQuestManager::instance().GetPCForce(ch->GetPlayerID());
-	std::string questName = utils::view_to_string(BiologistQuestNames.at(questID));
+	auto pPC = quest::CQuestManager::instance().GetPC(ch->GetPlayerID());
+	if(pPC == nullptr){
+		return false;
+	}	
+	std::string questName = BiologistQuestNames.at(questID);
 	std::string questState = utils::view_to_string(BiologistQuestStateCollect);
 	auto findItemValue = quest::CQuestManager::Instance().GetQuestStateIndex(questName, questState);
 
-	std::string questFlag = utils::string_view_concat(BiologistQuestNames.at(questID), ".__status");
+	std::string questFlag = BiologistQuestNames.at(questID) + ".__status";
 	int questStateValue = pPC->GetFlag(questFlag);
 
 	if(findItemValue != questStateValue)
@@ -38,15 +41,21 @@ bool CBiologistManager::IsValidQuestID(LPCHARACTER ch, const uint8_t questID)
 	return true;
 }
 
-bool CBiologistManager::IsQuestStatusFindItem(LPCHARACTER ch, std::string_view quest_name)
+bool CBiologistManager::IsQuestStatusFindItem(LPCHARACTER ch,const std::string& quest_name, uint8_t questID)
 {
-	auto pPC = quest::CQuestManager::instance().GetPCForce(ch->GetPlayerID());
-	std::string questName = utils::view_to_string(quest_name);
-	std::string questState = utils::view_to_string(BiologistQuestStateCollect);
-	auto findItemValue = quest::CQuestManager::Instance().GetQuestStateIndex(questName, questState);
 
-	std::string questFlag = utils::string_view_concat(quest_name, ".__status");
-	int questStateValue = pPC->GetFlag(questFlag);
+	auto pPC = quest::CQuestManager::instance().GetPC(ch->GetPlayerID());
+	if(pPC == nullptr){
+		return false;
+	}
+
+	std::string questState = utils::view_to_string(BiologistQuestStateCollect);
+	auto findItemValue = quest::CQuestManager::Instance().GetQuestStateIndex(quest_name, questState);
+	std::string questFlag = quest_name + ".__status";
+	std::string questFlagItem = (quest_name + utils::view_to_string(BiologistQuestFlagItemsDeliveredCount));
+
+	const int questStateValue = pPC->GetFlag(questFlag);
+	const uint32_t questFlagItemCount = pPC->GetFlag(questFlagItem);
 
 	//if the quest has not started yet, the status can be 0
 	//therefore if 0, the interface cannot be opened
@@ -57,21 +66,24 @@ bool CBiologistManager::IsQuestStatusFindItem(LPCHARACTER ch, std::string_view q
 	if(questStateValue != findItemValue)
 		return false;
 	//otherwise it's in a "finditem" state,
+
+	if(questFlagItemCount >= BiologistQuestItemLimits[questID])
+		return false;
+
 	return true;
 }
 
 void CBiologistManager::SetQuestStateToBack(DWORD playerID, const uint8_t questID)
 {
-	auto pPC = quest::CQuestManager::instance().GetPCForce(playerID);
-	std::string questName = utils::view_to_string(BiologistQuestNames.at(questID));
+	auto pPC = quest::CQuestManager::instance().GetPC(playerID);
+	if(pPC == nullptr){
+		return;
+	}	
+	std::string questName = BiologistQuestNames.at(questID);
 	std::string questState =  utils::view_to_string(BiologistQuestStateBack);
 
-	std::string prevState = utils::view_to_string(BiologistQuestStateCollect);
-	auto prevStateValue = quest::CQuestManager::Instance().GetQuestStateIndex(questName, prevState);
-	auto questIndex = quest::CQuestManager::instance().GetQuestIndexByName(questName);
 	pPC->SetQuestState(questName, questState);
 	pPC->DoQuestStateChange();
-	quest::CQuestManager::instance().Letter(playerID, questIndex, prevStateValue);
 }
 
 bool CBiologistManager::CheckOpenInterface(LPCHARACTER ch)
@@ -109,35 +121,44 @@ time_t CBiologistManager::GetRemainingTime(LPCHARACTER ch, const uint8_t questID
 	return floor(pPC->GetFlag(questName) - get_global_time());
 }
 
-uint8_t CBiologistManager::GetDeliveredItems(LPCHARACTER ch, const uint8_t questID)
+time_t CBiologistManager::GetRemainingTime(LPCHARACTER ch, const uint8_t questID)
 {
-	auto pPC = quest::CQuestManager::instance().GetPCForce(ch->GetPlayerID());
-	std::string questName = utils::string_view_concat(BiologistQuestNames.at(questID), BiologistQuestFlagItemsDeliveredCount);
-	return pPC->GetFlag(questName);
+	auto pPC = quest::CQuestManager::instance().GetPC(ch->GetPlayerID());
+	std::string questName = BiologistQuestNames.at(questID) + utils::view_to_string(BiologistQuestFlagTimer);
+	return floor(pPC->GetFlag(questName) - get_global_time());
 }
 
 void CBiologistManager::ExecuteDeliveryRequest(LPCHARACTER ch, uint8_t questID, uint8_t itemWantedCount,  uint8_t elixirCount, uint8_t elixirPlusCount, uint8_t timeDeleterCount)
 {
-	if(!IsValidQuestID(ch,questID)){
+	if (ch->GetDesc() == nullptr) {
+		return;
+	}
+
+	if (!IsValidQuestID(ch,questID)) {
 		ch->ChatPacket(CHAT_TYPE_INFO, LC_TEXT("An error occurred. Please contact an admin %s."), "[ERROR: 3009]");
 		ch->ChatPacket(CHAT_TYPE_INFO, "questID: %d", questID);
+		ch->UpdateBiologistRequestPulse();
+		return;
 	}
 	//double checks
-	uint8_t _itemWantedCount = itemWantedCount > BIOLOGIST_QUEST_ITEM_MAX_NUM ? BIOLOGIST_QUEST_ITEM_MAX_NUM : itemWantedCount;
+	uint8_t _itemWantedCount = itemWantedCount > this->GetBiologistQuestMaxNum() ? this->GetBiologistQuestMaxNum() : itemWantedCount;
 	uint8_t _elixirCount = elixirCount > _itemWantedCount ? _itemWantedCount : elixirCount;
 	uint8_t _elixirPlusCount = elixirPlusCount > _itemWantedCount ? _itemWantedCount : elixirPlusCount;
 	uint8_t _timeDeleterCount = timeDeleterCount > _itemWantedCount ? _itemWantedCount : timeDeleterCount;
 
-	auto pPC = quest::CQuestManager::instance().GetPCForce(ch->GetPlayerID());
-	std::string timerFlag = utils::string_view_concat(BiologistQuestNames.at(questID), BiologistQuestFlagTimer);
+	auto pPC = quest::CQuestManager::instance().GetPC(ch->GetPlayerID());
+	if(pPC == nullptr){
+		return;
+	}	
+	std::string timerFlag = BiologistQuestNames.at(questID) + utils::view_to_string(BiologistQuestFlagTimer);
 	uint32_t timerFlagValue = 0;
 
-	std::string quantityDeliveredFlag = utils::string_view_concat(BiologistQuestNames.at(questID), BiologistQuestFlagItemsDeliveredCount);
+	std::string quantityDeliveredFlag = BiologistQuestNames.at(questID) + utils::view_to_string(BiologistQuestFlagItemsDeliveredCount);
 	uint8_t quantityDeliveredFlagValue = pPC->GetFlag(quantityDeliveredFlag);
 
 	//for idiots
-	const uint8_t pctThreshold = 100 + BIOLOGIST_PCT_ADDER_VALUE;
-	const uint8_t pctThresholdPlus = 100 + BIOLOGIST_PCT_ADDER_PLUS_VALUE;
+	const uint8_t pctThreshold = 100 + this->GetBiologistPCTAdderValue();
+	const uint8_t pctThresholdPlus = 100 + this->GetBiologistPCTAdderPlusValue();
 
 	//system message
 	uint8_t successDeliveries = 0;
@@ -147,6 +168,7 @@ void CBiologistManager::ExecuteDeliveryRequest(LPCHARACTER ch, uint8_t questID, 
 	uint8_t elixirPlusUses = 0;
 	
 	uint8_t deliversCounter = 0;
+	
 	for(; deliversCounter <= _itemWantedCount; deliversCounter++)
 	{
 		auto itemToDeliver = ch->FindSpecifyItem(BiologistQuestItems.at(questID)); //check item to deliver
@@ -156,7 +178,7 @@ void CBiologistManager::ExecuteDeliveryRequest(LPCHARACTER ch, uint8_t questID, 
 		{
 			if(_timeDeleterCount > 0)
 			{
-				auto itemTimeDeleter = ch->FindSpecifyItem(BIOLOGIST_TIME_DELETER_VNUM); // check time deleter item
+				auto itemTimeDeleter = ch->FindSpecifyItem(this->GetBiologistPCTTimeDeleterVnum()); // check time deleter item
 				if(itemTimeDeleter != nullptr){
 					itemTimeDeleter->SetCount(itemTimeDeleter->GetCount() - 1); //remove the item
 					pPC->SetFlag(timerFlag, 0); //remove cooldown
@@ -166,12 +188,14 @@ void CBiologistManager::ExecuteDeliveryRequest(LPCHARACTER ch, uint8_t questID, 
 				else{
 					//send packet result
 					ResearchPacket(ch, questID, SEND_RESEARCH_INFO, deliversCounter, successDeliveries, failedDeliveries, timeDeleterUses, elixirUses, elixirPlusUses);
+					ch->UpdateBiologistRequestPulse();
 					return;
 				}
 			}
 			else{
 				//send packet result
 				ResearchPacket(ch, questID, SEND_RESEARCH_INFO, deliversCounter, successDeliveries, failedDeliveries, timeDeleterUses, elixirUses, elixirPlusUses);
+				ch->UpdateBiologistRequestPulse();
 				return;
 			}
 		}
@@ -179,25 +203,27 @@ void CBiologistManager::ExecuteDeliveryRequest(LPCHARACTER ch, uint8_t questID, 
 		//to check for the latest time deleter item
 		if(deliversCounter == _itemWantedCount){
 			ResearchPacket(ch, questID, SEND_RESEARCH_INFO, deliversCounter, successDeliveries, failedDeliveries, timeDeleterUses, elixirUses, elixirPlusUses);
+			ch->UpdateBiologistRequestPulse();
 			return;
 		}
 
 		if(itemToDeliver == nullptr){
 			ResearchPacket(ch, questID, SEND_RESEARCH_INFO, deliversCounter, successDeliveries, failedDeliveries, timeDeleterUses, elixirUses, elixirPlusUses);
+			ch->UpdateBiologistRequestPulse();
 			return;
 		}
 		uint8_t pct = BiologistQuestPCTs.at(questID);
 		if(_elixirCount > 0) //looking if to add pct
 		{
-			auto itemPctAdder = ch->FindSpecifyItem(BIOLOGIST_PCT_ADDER_VNUM); // check elixir
+			auto itemPctAdder = ch->FindSpecifyItem(this->GetBiologistPCTAdderVnum()); // check elixir
 			if(itemPctAdder != nullptr)
 			{			
 				//if base pct is 99 and someone wants to make it 100%, then, sure, by all means. 
 				//But if it goes higher than that, it means that idiot just went ahead anyway
 				//so, let's try to save them from their stupidity
 				//LEGIT IDIOT PROOF
-				if((pct + BIOLOGIST_PCT_ADDER_VALUE) < pctThreshold){
-					pct += BIOLOGIST_PCT_ADDER_VALUE;
+				if((pct + this->GetBiologistPCTAdderValue()) < pctThreshold){
+					pct += this->GetBiologistPCTAdderValue();
 					itemPctAdder->SetCount(itemPctAdder->GetCount() - 1);
 					--_elixirCount;
 					++elixirUses;
@@ -206,15 +232,15 @@ void CBiologistManager::ExecuteDeliveryRequest(LPCHARACTER ch, uint8_t questID, 
 		}
 		if(_elixirPlusCount > 0) //looking if to add more pct
 		{
-			auto itemPctAdderPlus = ch->FindSpecifyItem(BIOLOGIST_PCT_ADDER_PLUS_VNUM); // check elixir
+			auto itemPctAdderPlus = ch->FindSpecifyItem(this->GetBiologistPCTAdderPlusVnum()); // check elixir
 			if(itemPctAdderPlus != nullptr)
 			{			
 				//if base pct is 99 and someone wants to make it 100%, then, sure, by all means. 
 				//But if it goes higher than that, it means that idiot just went ahead anyway
 				//so, let's try to save them from their stupidity
 				//LEGIT IDIOT PROOF, AGAIN
-				if((pct + BIOLOGIST_PCT_ADDER_PLUS_VALUE) < pctThresholdPlus){
-					pct += BIOLOGIST_PCT_ADDER_VALUE;
+				if((pct + this->GetBiologistPCTAdderPlusValue()) < pctThresholdPlus){
+					pct += this->GetBiologistPCTAdderPlusValue();
 					itemPctAdderPlus->SetCount(itemPctAdderPlus->GetCount() - 1);
 					--_elixirPlusCount;
 					++elixirPlusUses;
@@ -231,6 +257,7 @@ void CBiologistManager::ExecuteDeliveryRequest(LPCHARACTER ch, uint8_t questID, 
 				pPC->SetFlag(timerFlag, 0); //remove cooldown
 				SetQuestStateToBack(ch->GetPlayerID(), questID);
 				ResearchPacket(ch, questID, SEND_RESEARCH_COMPLETE, deliversCounter, successDeliveries, failedDeliveries, timeDeleterUses, elixirUses, elixirPlusUses);
+				ch->UpdateBiologistRequestPulse();
 				return;
 			}
 			else{ //set cooldown for success delivery
@@ -246,12 +273,18 @@ void CBiologistManager::ExecuteDeliveryRequest(LPCHARACTER ch, uint8_t questID, 
 	}
 	//send packet research with result
 	ResearchPacket(ch, questID, SEND_RESEARCH_INFO, deliversCounter, successDeliveries, failedDeliveries, timeDeleterUses, elixirUses, elixirPlusUses);
-
+	ch->UpdateBiologistRequestPulse();
 	
-}	
+}
 
 void CBiologistManager::ResearchPacket(LPCHARACTER ch, const uint8_t questID, uint8_t subheader, uint8_t deliversCounter, uint8_t successDeliveries, uint8_t failedDeliveries, uint8_t  timeDeleterUses, uint8_t elixirUses, uint8_t elixirPlusUses)
 {
+	if(ch == nullptr)
+		return;
+
+	if(ch->GetDesc() == nullptr)
+		return;
+
 	time_t remainingTime = GetRemainingTime(ch, questID);
 
 	TPacketGCBiologistManagerSendResearch p;
@@ -266,4 +299,29 @@ void CBiologistManager::ResearchPacket(LPCHARACTER ch, const uint8_t questID, ui
 	p.remainingTime = remainingTime <= 0 ? 0 : remainingTime;
 
 	ch->GetDesc()->Packet(&p, sizeof(TPacketGCBiologistManagerSendResearch));
+}
+
+void CBiologistManager::PopulateQuestNamesVector(std::string& quest_name)
+{
+	BiologistQuestNames.emplace_back(quest_name);
+}
+
+void CBiologistManager::PopulateQuestItemVector(uint32_t quest_item)
+{
+	BiologistQuestItems.emplace_back(quest_item);
+}
+
+void CBiologistManager::PopulateQuestCooldownsVector(uint32_t cooldown)
+{
+	BiologistQuestCooldowns.emplace_back(cooldown);
+}
+
+void CBiologistManager::PopulateQuestPCTsVector(uint32_t pct)
+{
+	BiologistQuestPCTs.emplace_back(pct);
+}
+
+void CBiologistManager::PopulateQuestItemLimitsVector(uint32_t item_limit)
+{
+	BiologistQuestItemLimits.emplace_back(item_limit);
 }
